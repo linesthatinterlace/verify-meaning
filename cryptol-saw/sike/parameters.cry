@@ -1,0 +1,57 @@
+interface module parameters where
+    type p  : # // p must be of the form 2^(e2)3^(e3) - 1
+    type constraint (fin p, p % 4 == 3, p>=7, prime p)
+    type e2 : #
+    type constraint (fin e2, e2 >=4) // Need >=4 for type reasons - in practice it will be bigger than this!
+
+    type e3 : #
+    type constraint (fin e3, e3 >=1) // Need >=1 for type reasons - in practice it will be bigger than this!
+
+    type Np   : # // Np   == lg2 p /^ 8
+    type constraint (fin Np)
+    type Nsk2 : # // Nsk2 == e2 /^ 8
+    type constraint (fin Nsk2, 1<= Nsk2, Nsk2 <= 1024 )
+    type Nsk3 : # // Nsk3 == (lg2 (3^^e3) - 1) /^ 8
+    type constraint (fin Nsk3, 8 <= Nsk3, Nsk3 <= 1024)
+
+    type crypto_bytes : #
+    type constraint (fin crypto_bytes)
+
+    type msg_bytes : #
+    type constraint (fin msg_bytes, 1 <= msg_bytes, msg_bytes <= 1024)
+
+    xQ20 : Integer
+    xQ21 : Integer
+
+    yQ20 : Integer
+    yQ21 : Integer
+
+    xP20 : Integer
+    xP21 : Integer
+
+    yP20 : Integer
+    yP21 : Integer
+
+    xR20 : Integer
+    xR21 : Integer
+
+    xQ30 : Integer
+    xQ31 : Integer
+
+    yQ30 : Integer
+    yQ31 : Integer
+
+    xP30 : Integer
+    xP31 : Integer
+
+    yP30 : Integer
+    yP31 : Integer
+
+    xR30 : Integer
+    xR31 : Integer
+
+    type KatTest = { count : Integer, seed : [384], pk: [6*Np*8],
+      sk : [(msg_bytes + Nsk3 + 6*Np)*8],
+      ct : [(6*Np + msg_bytes)*8], ss : [crypto_bytes*8]}
+
+    katTests : [100]KatTest

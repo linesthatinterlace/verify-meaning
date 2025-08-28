@@ -1,6 +1,7 @@
 module sike where
 import lib::keccak
 import lib::DRBG
+import interface parameters
 
 ////
 //// SIKE (Reference Implementation, Parameterized)
@@ -13,60 +14,6 @@ import lib::DRBG
 //
 // Parameters
 //
-
-parameter
-    type p  : # // p must be of the form 2^(e2)3^(e3) - 1
-    type constraint (fin p, p % 4 == 3, p>=7)
-    type e2 : #
-    type constraint (fin e2, e2 >=4) // Need >=4 for type reasons - in practice it will be bigger than this!
-    
-    type e3 : #
-    type constraint (fin e3, e3 >=1) // Need >=1 for type reasons - in practice it will be bigger than this!
-    
-    type Np   : # // Np   == lg2 p /^ 8
-    type constraint (fin Np)
-    type Nsk2 : # // Nsk2 == e2 /^ 8
-    type constraint (fin Nsk2, 1<= Nsk2, Nsk2 <= 1024 )    
-    type Nsk3 : # // Nsk3 == (lg2 (3^^e3) - 1) /^ 8
-    type constraint (fin Nsk3, 8 <= Nsk3, Nsk3 <= 1024)
-    
-    type crypto_bytes : #
-    type constraint (fin crypto_bytes)
-
-    type msg_bytes : #
-    type constraint (fin msg_bytes, 1 <= msg_bytes, msg_bytes <= 1024)
-
-    startingCurve : MontgomeryCurve
-    
-    xQ20 : Integer
-    xQ21 : Integer
-    
-    yQ20 : Integer
-    yQ21 : Integer
-    
-    xP20 : Integer
-    xP21 : Integer
-    
-    yP20 : Integer
-    yP21 : Integer
-
-    xR20 : Integer
-    xR21 : Integer
-    
-    xQ30 : Integer
-    xQ31 : Integer
-    
-    yQ30 : Integer
-    yQ31 : Integer
-    
-    xP30 : Integer
-    xP31 : Integer
-    
-    yP30 : Integer
-    yP31 : Integer
-    
-    xR30 : Integer
-    xR31 : Integer
 
 //
 // Public generator points
@@ -93,10 +40,9 @@ xQ3 = [fromInteger xQ30, fromInteger xQ31] : Fp2
 yQ3 = [fromInteger yQ30, fromInteger yQ31] : Fp2
 Q3  = mkAffine xQ3 yQ3
 
-
-// 
+//
 // Data type conversions.
-// 
+//
 
 ostoi : {mlen} (fin mlen) => [mlen][8] -> Integer
 ostoi = reverse ~~> join ~~> toInteger
@@ -173,9 +119,7 @@ p34 : [width (p + 1)]
 p34 = p14 - 1
 
 fpMultInv : Fp -> Fp
-fpMultInv a =  if a == 0
-                then error "Cannot divide by zero!"
-                else fpPow a ( ( p34 << 2) + 1 )
+fpMultInv a = recip a
 
 fpMultUnit : Fp
 fpMultUnit = 1
@@ -192,7 +136,7 @@ fpPow a n = bs ! 0
 
 fpSqrt : Fp -> Fp
 fpSqrt a =  if fpSquare r != a then error "Not a quadratic residue in Fp!"
-            else    if r % 2 == 0
+            else    if (fromZ r) % 2 == 0
                     then r
                     else -r
             where   r   = fpPow a p14
@@ -277,7 +221,7 @@ fp2Sqrt a = if fpQuadNonRes (norm a)
                 then    if      fpQuadNonRes a0
                         then    [zero, fpSqrt (fpAddInv a0)]
                         else    [fpSqrt a0, zero]
-                else    if      (alpha % 2 != zero)
+                else    if      (fromZ alpha % 2 != zero)
                         then    fp2AddInv [alpha, beta]
                         else    [alpha, beta]
                 where   [a0, a1]    = a
@@ -304,7 +248,10 @@ type EllipticPoint = {affine: {x: Fp2, y: Fp2}, isAffine: Bit}
 mkAffine : Fp2 -> Fp2 -> EllipticPoint
 mkAffine x' y' = { affine = {x = x', y = y'}, isAffine = True }
 
-type MontgomeryCurve = { A: Fp2, B: Fp2}
+type MontgomeryCurve = { A: Fp2, B: Fp2 }
+
+startingCurve : MontgomeryCurve
+startingCurve = { A = [(6 : Z p), zero], B = [(1 : Z p), zero]}
 
 mkMC : Fp2 -> Fp2 -> MontgomeryCurve
 mkMC a b = if discrim == zero then error "Discriminant must not be zero!" else {A = a, B = b}
@@ -316,7 +263,7 @@ verifyPoint C P =  if ~P.isAffine
             else fp2MultL[C.B, yP, yP] == fp2AddL[fp2MultL[xP, xP, xP], fp2MultL[C.A, xP, xP], xP]
                     where   xP = P.affine.x
                             yP = P.affine.y
-                            
+
 
 
 //
@@ -460,11 +407,11 @@ curve_2_iso x2 C = {A = a', B = b'}
             t5  = fp2Mult x2 C.B
             a'  = t4
             b'  = t5
-                            
+
 // a' = 2*(1-2*x2^2)
 // b' = x2*b
-          
-         
+
+
 // Algorithm 33
 eval_2_iso : Fp2 -> EllipticPoint -> EllipticPoint
 eval_2_iso x2 Q = Q'
@@ -535,7 +482,7 @@ eval_4_iso x4 Q = Q'
             t19 = fp2Doub t18
             t20 = fp2Doub t19
             t21 = fp2Subt t15 t20
-            t22 = fp2Mult t16 x4 
+            t22 = fp2Mult t16 x4
             t23 = fp2Doub t22
             t24 = fp2Doub t23
             t25 = fp2Subt t21 t24
@@ -714,7 +661,7 @@ get_yP_yQ_A_B pk = ([yP, yQ'], C)
             t11 = fp2Mult t1 t9
             t12 = fp2Add t10 t11
             t13 = fp2Add t12 xQ
-            t14 = fp2Sqrt t13        
+            t14 = fp2Sqrt t13
             yP  = t8
             yQ  = t14
             C   = mkMC t1 t2
@@ -754,7 +701,7 @@ isoex_2 pk3 sk2 = j2
     where   exponent = fromInteger <~ ostoi sk2
             [xP2', xQ2', xR2'] = ostopk pk3
             ([yP2', yQ2'], C) = get_yP_yQ_A_B pk3
-            P2' = mkAffine xP2' yP2' 
+            P2' = mkAffine xP2' yP2'
             Q2' = mkAffine xQ2' yQ2'
             S = xADD C P2' (double_and_add`{Nsk2*8} C Q2' exponent)
             (C', _) = iso_2_e S (C, [])
@@ -767,7 +714,7 @@ isoex_3 pk2 sk3 = j3
     where   exponent = fromInteger <~ ostoi sk3
             [xP3', xQ3', xR3'] = ostopk pk2
             ([yP3', yQ3'], C) = get_yP_yQ_A_B pk2
-            P3' = mkAffine xP3' yP3' 
+            P3' = mkAffine xP3' yP3'
             Q3' = mkAffine xQ3' yQ3'
             S = xADD C P3' (double_and_add`{Nsk3*8} C Q3' exponent)
             (C', _) = iso_3_e S (C, [])
@@ -777,7 +724,7 @@ isoex_3 pk2 sk3 = j3
 /// Protocol Specification
 ///
 
-//            
+//
 // Hash functions. Defined using SHAKE-256.
 //
 
@@ -812,7 +759,7 @@ PKE_Dec sk3 ct = m
     where   (c0 : [6*Np][8]) # (c1 : [msg_bytes][8]) = ct
             j   = isoex_3 c0 sk3
             h   = F j
-            m   = h ^ c1  
+            m   = h ^ c1
 
 //
 // Key Encapsulation Mechanism (Algorithm 2)
@@ -821,7 +768,7 @@ PKE_Dec sk3 ct = m
 KEM_KeyGen : [Nsk3][8] -> [msg_bytes][8] -> ([6*Np][8], [msg_bytes + Nsk3 + 6*Np][8]) // sk3 and s are random.
 KEM_KeyGen sk3 s    = (pk3, s # sk3 # pk3)
     where   pk3     = isogen_3 sk3
-    
+
 KEM_Encaps : [msg_bytes][8] -> [6*Np][8] -> ([6*Np + msg_bytes][8], [crypto_bytes][8]) // m is random
 KEM_Encaps m pk3    = (ct, ss)
     where   r       = G <~ m # pk3
@@ -864,8 +811,8 @@ property fpAddInvSquareSelf = fpSquare fpAddUnit == fpAddUnit
 property fpMultValidInverse a = fpMult a (fpMultInv a) == fpMultUnit
 property fpMultInverseInverseIdentity a = fpMultInv (fpMultInv a) == a
 property fpSquareSqrtIdentity a = fpQuadNonRes a \/ (fpSqrt ~~> fpSquare) a == a
-property fpSqrtSquareIdentity a = abs a == a  \/ abs a == fpAddInv a
-    where abs = fpSquare ~~> fpSqrt
+property fpSqrtSquareIdentity a = absv a == a  \/ absv a == fpAddInv a
+    where absv = fpSquare ~~> fpSqrt
 
 //
 // F_(p^2) Arithmetic Tests
@@ -888,8 +835,8 @@ property fp2AddInvSquareSelf = fp2Square fp2AddUnit == fp2AddUnit
 property fp2MultValidInverse a = fp2Mult a (fp2MultInv a) == fp2MultUnit
 property fp2MultInverseInverseIdentity a = fp2MultInv (fp2MultInv a) == a
 property fp2SquareSqrtIdentity a = fp2QuadNonRes a \/ (fp2Sqrt ~~> fp2Square) a == a
-property fp2SqrtSquareIdentity a = abs a == a  \/ abs a == fp2AddInv a
-    where abs = fp2Square ~~> fp2Sqrt
+property fp2SqrtSquareIdentity a = absv a == a  \/ absv a == fp2AddInv a
+    where absv = fp2Square ~~> fp2Sqrt
 
 //
 // Isogen Random Test
@@ -932,11 +879,11 @@ pkeTest seed = m == mRec
         (pk3, _)        =   PKE_Gen sk3
         ct              =   PKE_Enc pk3 m sk2
         mRec            =   PKE_Dec sk3 ct
-       
+
 
 //
 // KEM Random Test
-// 
+//
 
 kemTestRandomness : [384] -> ([msg_bytes][8], [Nsk3][8], [msg_bytes][8])
 kemTestRandomness seed = (s', sk3', m')
@@ -958,7 +905,6 @@ kemTest seed = ss == ssRec
 // KAT Tests
 //
 
-type KatTest = { count : Integer, seed : [384], pk: [6*Np*8], sk : [(msg_bytes + Nsk3 + 6*Np)*8], ct : [(6*Np + msg_bytes)*8], ss : [crypto_bytes*8]}  
 
 runKatTest : KatTest -> Bit
 runKatTest req =   if  pk  != groupBy req.pk
@@ -977,7 +923,7 @@ runKatTest req =   if  pk  != groupBy req.pk
         (pk, sk)    = KEM_KeyGen sk3 s
         (ct, ss)    = KEM_Encaps m pk
         ss1         = KEM_Decaps sk ct
-       
+
 
 
 ///

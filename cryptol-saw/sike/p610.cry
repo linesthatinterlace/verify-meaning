@@ -1,0 +1,1 @@
+module p610 = sike { parameters = parameters::p610 }
