@@ -118,14 +118,22 @@ p14 = `(p + 1) / 4
 p34 : [width (p + 1)]
 p34 = p14 - 1
 
+psub1 : [width (1 + p)]
+psub1 = (p34 << 2) + 1
+
 fpMultInv : Fp -> Fp
 fpMultInv a = recip a
+
+fpMultInv' : Fp -> Fp
+fpMultInv' a =  if a == 0
+                then error "Cannot divide by zero!"
+                else fpPow a psub1
 
 fpMultUnit : Fp
 fpMultUnit = 1
 
 fpDiv : Fp -> Fp -> Fp
-fpDiv a b = fpMult a (fpMultInv b)
+fpDiv a b = a /. b
 
 fpSquare : Fp -> Fp
 fpSquare a = fpMult a a
@@ -260,7 +268,7 @@ mkMC a b = if discrim == zero then error "Discriminant must not be zero!" else {
 verifyPoint : MontgomeryCurve -> EllipticPoint -> Bit
 verifyPoint C P =  if ~P.isAffine
             then True
-            else fp2MultL[C.B, yP, yP] == fp2AddL[fp2MultL[xP, xP, xP], fp2MultL[C.A, xP, xP], xP]
+            else fp2Mult (fp2Mult C.B yP) yP == fp2Add (fp2Add (fp2Mult (fp2Mult xP xP) xP) (fp2Mult (fp2Mult C.A xP) xP)) xP
                     where   xP = P.affine.x
                             yP = P.affine.y
 
@@ -809,6 +817,7 @@ property fpMultZeroNull a = fpMult a fpAddUnit == fpAddUnit
 property fpSquareIsMult a = fpSquare a == fpMult a a
 property fpAddInvSquareSelf = fpSquare fpAddUnit == fpAddUnit
 property fpMultValidInverse a = fpMult a (fpMultInv a) == fpMultUnit
+property fpMultEq a = fpMultInv a == fpMultInv' a
 property fpMultInverseInverseIdentity a = fpMultInv (fpMultInv a) == a
 property fpSquareSqrtIdentity a = fpQuadNonRes a \/ (fpSqrt ~~> fpSquare) a == a
 property fpSqrtSquareIdentity a = absv a == a  \/ absv a == fpAddInv a
